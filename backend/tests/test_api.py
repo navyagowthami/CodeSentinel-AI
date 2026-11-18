@@ -55,3 +55,28 @@ async def test_scan_and_export():
         fe_res = await client.get("/")
         assert fe_res.status_code == 200
         assert "CodeSentinel" in fe_res.text
+
+@pytest.mark.asyncio
+async def test_root_health_and_classify():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # Check root /health
+        h_res = await client.get("/health")
+        assert h_res.status_code == 200
+        assert h_res.json()["ok"] is True
+
+        # Check /classify with billing
+        c_res = await client.post("/classify", json={"text": "Please refund this invoice"})
+        assert c_res.status_code == 200
+        data = c_res.json()
+        assert data["category"] == "billing"
+        assert "urgency" in data
+        assert "confidence" in data
+
+        # Check /classify with technical
+        c_res2 = await client.post("/classify", json={"text": "The server has a critical crash error"})
+        assert c_res2.status_code == 200
+        assert c_res2.json()["category"] == "technical"
+
+        # Check /classify with empty text (expect 400)
+        c_err = await client.post("/classify", json={"text": ""})
+        assert c_err.status_code == 400

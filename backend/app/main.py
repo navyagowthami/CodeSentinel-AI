@@ -35,9 +35,34 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def classify_text(text: str) -> dict:
+    text_lower = text.lower()
+    category = "general"
+    for label, words in (
+        ("billing", ("refund", "invoice", "payment", "charge")),
+        ("technical", ("error", "crash", "bug", "broken")),
+        ("account", ("login", "password", "account", "sign in")),
+    ):
+        if any(word in text_lower for word in words):
+            category = label
+            break
+    urgency = "high" if any(w in text_lower for w in ("urgent", "outage", "immediately")) else "low"
+    return {"category": category, "urgency": urgency, "confidence": 0.85}
+
+@app.get("/health")
+async def root_health_check():
+    return {"ok": True, "status": "ok", "app": PROJECT_NAME, "version": VERSION}
+
+@app.post("/classify")
+async def classify_endpoint(data: dict):
+    text = data.get("text") if isinstance(data, dict) else None
+    if not isinstance(text, str) or not text.strip():
+        raise HTTPException(status_code=400, detail="text_required")
+    return classify_text(text)
+
 @app.get("/api/health")
 async def health_check():
-    return {"status": "ok", "app": PROJECT_NAME, "version": VERSION}
+    return {"ok": True, "status": "ok", "app": PROJECT_NAME, "version": VERSION}
 
 @app.get("/api/samples")
 async def get_sample_repositories():
